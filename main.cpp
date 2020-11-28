@@ -1,61 +1,35 @@
 #include <bits/stdc++.h>
 #include <fstream>
-#include <string>
 using namespace std;
-int total_size=5171;
-int train_size=total_size*.80,feature_vector_size=500;
+int feature_vector_size=500;
 float modification_rate=0.05;
-vector<float> limits={-8,8};
+vector<float> limits={-5,5};
 int reg_coefficient_vector_size=feature_vector_size+1;
 vector<float> res(reg_coefficient_vector_size);
-vector< vector<float> > X(total_size, vector<float>(feature_vector_size));
-vector<int> Y(total_size);
-int flag=0;
-float LogRegLossyFun(vector<float> x){
+vector< vector<float> > X_train,X_test;
+vector<int> Y_train,Y_test;
+float LogRegLossFun(vector<float> &x){
     float loss_fun=0.0,h=0.0,yhat=0.0;
-    for(int i=0;i<train_size;i++)
+    for(int i=0;i<Y_train.size();i++)
     {
         yhat=0.0;
         for(int j=0;j<feature_vector_size;j++){
-                yhat+=X[i][j]*x[j];
+                yhat+=X_train[i][j]*x[j];
 
         }
         yhat+=x[feature_vector_size];
         h=1/(1.0+exp(-yhat));
-        if(h==1)h=0.9999;
-        if(h==0)h=0.0001;
-        loss_fun+=(-Y[i]*log(h+0.0))-(1.0-Y[i])*log(1.0-h);
+        loss_fun+=pow((Y_train[i]-h),2);
     }
     return loss_fun;
-}
-float LogRegLossFun(vector<float> x){
-    float loss_fun=0.0,h=0.0,yhat=0.0;
-    for(int i=0;i<train_size;i++)
-    {
-        yhat=0.0;
-        for(int j=0;j<feature_vector_size;j++){
-                yhat+=X[i][j]*x[j];
-
-        }
-        yhat+=x[feature_vector_size];
-        h=1/(1.0+exp(-yhat));
-       // if(h==1)h=0.9999;
-       // if(h==0)h=0.0001;
-        loss_fun+=pow((Y[i]-h),2);
-    }
-    return loss_fun;
-}
-bool comp(vector<float> a,vector<float> b){
-    if(a[a.size()-1]>b[b.size()-1])return true;
-    return false;
 }
 vector<float> LogRegObjFun(vector<float> x){
-    vector<float> obj_fun(total_size);
+    vector<float> obj_fun(Y_test.size());
     float h=0.0,yhat=0.0;
-    for(int i=0;i<total_size;i++)
+    for(int i=0;i<Y_test.size();i++)
     {
         yhat=0.0;
-        for(int j=0;j<feature_vector_size;j++)yhat+=X[i][j]*x[j];
+        for(int j=0;j<feature_vector_size;j++)yhat+=X_test[i][j]*x[j];
         yhat+=x[feature_vector_size];
         h=1/(1.0+exp(-yhat));
         obj_fun[i]=h;
@@ -75,11 +49,7 @@ float rndn(float a=0.0,float b=1.0){
     //cout<<t<<endl;
     return t;
 }
-float mod(float x){
-    if(x<0)
-    return -1*x;
-    return x;
-}
+//Krill herd optimization algorithm
 class kho{
 public:
     vector<vector<float>> krill;
@@ -87,8 +57,9 @@ public:
     float inertial_wt,ct,dmax,vf;
     vector<float> g_best;
     int max_iteration;
-    kho(int herd_size,int max_iteration,float inertial_wt,float dmax=0.005,float ct=1)
+    kho(int herd_size,int max_iteration,float dmax=0.005,float ct=1)
     {
+        this->inertial_wt=0.9;
         this->vf=0.02;
         this->g_best=vector<float>(reg_coefficient_vector_size+1);
         this->ct=ct;
@@ -107,15 +78,7 @@ public:
             krill[i][reg_coefficient_vector_size]=LogRegLossFun(krill[i]);
         }
     }
-    float rnd_co(int x,int y,int z){ //generates a random number between x and y except z
-        float r=rnd(x,y);
-        if(r==z)
-        {
-            return rnd_co(x,y,z);
-        }
-        return r;
-    }
-    float find_distance(vector<float> x,vector<float> y) //to find distance between vectors which is equal to magnitude of the resultant vector
+    float find_distance(vector<float> &x,vector<float> &y) //to find distance between vectors which is equal to magnitude of the resultant vector
     {
         float rms=0;
         for(int i=0;i<reg_coefficient_vector_size;i++){
@@ -266,7 +229,11 @@ public:
             {
                 float ki=krill[i][reg_coefficient_vector_size],kbest=krill[best][reg_coefficient_vector_size],kworst=krill[worst][reg_coefficient_vector_size];
                 float cr=0.2*(ki-kbest)/(kworst-kbest+0.0001);
-                int p=rnd_co(0,herd_size-1,i);
+                int p=i;
+                while(p==i)
+                {
+                    p=rnd(0,herd_size-1);
+                }
                 for(int j=0;j<reg_coefficient_vector_size;j++)
                 {
                     if(rnd(0,1)<cr)
@@ -295,7 +262,6 @@ public:
         }
         res=g_best;
     }
-
 };
 class abc{
 public:
@@ -449,29 +415,6 @@ public:
             cout<<"iteration:"<<setprecision(4)<<it<<"   "<<lr_val[it-1]<<endl;
         }
     res=this->best_food_source;
-    /*ofstream opfile;
-    opfile.open("abc_output.txt");
-    if (opfile.is_open())
-    {
-        for(int i=0;i<res.size();i++)
-        {
-            cout<<res[i]<<" ";
-            opfile<<res[i]<<" ";
-        }
-        opfile.close();
-    }
-            ofstream lr_res;
-        lr_res.open("abc_lr_res.txt");
-        if (lr_res.is_open())
-        {
-            for(int i=0;i<lr_val.size();i++)
-            {
-                cout<<lr_val[i]<<" ";
-                lr_res<<lr_val[i]<<" ";
-            }
-            lr_res.close();
-        }
-    */
     }
 };
 class cso{
@@ -508,10 +451,16 @@ public:
     void find_fit(){
         time_t start, finish;
         time(&start);
-        vector<float> lr_val(iterations);
-        sort(nest.begin(),nest.end(),comp);
-        vector<float> best_sol=nest[0];
+        vector<float> best_sol=nest[0],lr_val(iterations);
         float best_fit=nest[0][dimension];
+        for(int i=0;i<population;i++)
+        {
+            if(best_fit>nest[i][dimension])
+            {
+                best_fit=nest[i][dimension];
+                best_sol=nest[i];
+            }
+        }
         for(int it=0;it<iterations;it++)
         {
             //new solution generation
@@ -524,7 +473,8 @@ public:
                 {
                     u=sigma*rndn(0,100);
                     v=rndn(0,100);
-                    double s=u/pow(mod(v),1.0/beta);
+                    if(v<0)v*=-1;
+                    double s=u/pow(v,1.0/beta);
                     new_sol[j]=nest[i][j]+0.01*s*(nest[i][j]-nest[0][j]);
                     if(new_sol[j]>boundaries[1])new_sol[j]=boundaries[1];
                     if(new_sol[j]<boundaries[0])new_sol[j]=boundaries[0];
@@ -575,6 +525,7 @@ public:
             lr_val[it]=best_fit;
             cout<<"iteration "<<it<<":"<<setprecision(5)<<lr_val[it]<<setw(20)<<finish-start<<endl;
         }
+        res=best_sol;
        /* ofstream optfile;
         optfile.open("cso_output.txt");
         if (optfile.is_open())
@@ -597,228 +548,110 @@ public:
             }
             lrres.close();
         }*/
-        res=best_sol;
+
     }
-    void mod_find_fit(){
-        float abd_ratio=0.75,phi=(pow(5,0.5)-1)/2;
-        vector<float> lr_val(iterations);
-        int g=1;
-        for(int it=0;it<iterations;it++)
-        {
-            g++;
-            sort(nest.begin(),nest.end(),comp);
-            vector<float> best_sol(dimension);
-            float best_fit=nest[0][dimension];
 
-            for(int i=(1-abd_ratio)*population;i<population;i++)
-            {
-                float malpha=.1/pow(g,0.5);
-                double u,v;
-                vector<float> new_sol=nest[i];
-                for(int j=0;j<dimension;j++)
-                {
-                    u=sigma*rndn(0,100);
-                    v=rndn(0,100);
-                    double s=u/pow(mod(v),1.0/beta);
-                    //cout<<j<<" "<<u<<" "<<v<<" "<<s<<endl;
-                    new_sol[j]=nest[i][j]+malpha*s*(nest[i][j]-nest[0][j]);
-                    //checking bounds
-                    if(new_sol[j]>boundaries[1])new_sol[j]=boundaries[1];
-                    if(new_sol[j]<boundaries[0])new_sol[j]=boundaries[0];
-                }
-                //greedy selection
-                new_sol[dimension]=calculate_fit(new_sol);
-                if(nest[i][dimension]>new_sol[dimension])
-                {
-                    nest[i]=new_sol;
-                }
-
-            }
-            //nest abandon
-            for(int i=0;i<(1-abd_ratio)*population;i++)
-            {
-
-                vector<float> new_sol=nest[i];
-
-                int new_nest=rnd(0,(1-abd_ratio)*population-1);
-                if(new_nest==i)
-                {
-                    float malpha=.1/pow(g,2);
-                    for(int j=0;j<dimension;j++)
-                    {
-                            float u=sigma*rndn(0,100);
-                            float v=rndn(0,100);
-                            double s=u/pow(mod(v),1.0/beta);
-                            new_sol[j]=nest[i][j]+malpha*s*(nest[i][j]-nest[0][j]);
-                    //checking bounds
-                            if(new_sol[j]>boundaries[1])new_sol[j]=boundaries[1];
-                            if(new_sol[j]<boundaries[0])new_sol[j]=boundaries[0];
-                    }
-                    //greedy selection
-                    int rnd_nest=rnd(0,population-1);
-                    new_sol[dimension]=calculate_fit(new_sol);
-                    if(calculate_fit(nest[rnd_nest])>new_sol[dimension])
-                    {
-                        nest[rnd_nest]=new_sol;
-                    }
-                }
-                else{
-                    for(int j=0;j<dimension;j++)
-                    {
-                        float dx;
-                        if(nest[i][dimension]<nest[new_nest][dimension])
-                        {
-                            dx=(nest[i][j]-nest[new_nest][j])/phi;
-                            new_sol[j]=nest[new_nest][j]-dx;
-                        }
-                        else
-                        {
-                            dx=(nest[i][j]-nest[new_nest][j])/phi;
-                            new_sol[j]=nest[i][j]+dx;
-                        }
-
-                    }
-                    int rnd_nest=rnd(0,population-1);
-                    new_sol[dimension]=calculate_fit(new_sol);
-                    if(nest[rnd_nest][dimension]>new_sol[dimension])
-                    {
-                        nest[rnd_nest]=new_sol;
-                    }
-
-                }
-            }
-            for(int i=0;i<population;i++)
-            {
-
-                vector<float> new_sol=nest[i];
-                if(rnd(0,1)<pa)
-                {
-                int d1=rnd(0,population-1),d2=rnd(0,population-1);
-                    for(int j=0;j<dimension;j++)
-                    {
-                            new_sol[j]=nest[i][j]+rnd(0,1)*(nest[d1][j]-nest[d2][j]);
-                            //checking bounds--
-                            if(new_sol[j]>boundaries[1])new_sol[j]=boundaries[1];
-                            if(new_sol[j]<boundaries[0])new_sol[j]=boundaries[0];
-                    }
-                    //greedy selection
-                    new_sol[dimension]=calculate_fit(new_sol);
-                    if(nest[i][dimension]>new_sol[dimension])
-                    {
-                        nest[i]=new_sol;
-                        if(new_sol[dimension]<best_fit)
-                        {
-                            best_fit=new_sol[dimension];
-                        }
-                    }
-                }
-
-            }
-            lr_val[it]=best_fit;
-            cout<<"iteration "<<it<<":"<<lr_val[it]<<endl;
-        }
-        ofstream optfile;
-        res=best_nest;
-        /*optfile.open("cso_output.txt");
-        if (optfile.is_open())
-        {
-            for(int i=0;i<res.size();i++)
-            {
-                cout<<best_nest[i]<<" ";
-                optfile<<best_nest[i]<<" ";
-            }
-            optfile.close();
-        }
-        ofstream lrres;
-        lrres.open("cso_lr_res.txt");
-        if (lrres.is_open())
-        {
-            for(int i=0;i<lr_val.size();i++)
-            {
-                cout<<lr_val[i]<<" ";
-                lrres<<lr_val[i]<<" ";
-            }
-            lrres.close();
-        }*/
-    }
 };
 int main () {
-    srand (time(NULL));
-    /* initialize random seed: */
-    float temp;
-    ifstream myfile ("sparse_array_enron500.txt");
+    srand (time(NULL));/* initialize random seed: */
+    vector<vector<float>> x,x_os;
+    vector<int> y,y_os;
+    //readin the input files for preprocessed data
+    ifstream myfile ("sparse_array500.txt");
     if (myfile.is_open())
     {
         int i=0,j=0;
-        for(i=0;i<total_size;i++)
+        while(!myfile.eof())
         {
+            x.push_back(vector<float>());
             for(j=0;j<feature_vector_size;j++)
             {
+                float temp;
                 myfile>>temp;
-                X[i][j]=temp;
+                x[i].push_back(temp);
             }
+            i++;
         }
     myfile.close();
     }
-    else cout << "Unable to open file 1";
-    ifstream mf ("Y_1.txt");
+    else cout << "Unable to open file X";
+    ifstream mf ("Y.txt");
     if (mf.is_open())
     {
         float d;
-        for(int i=0;i<total_size;i++)
+        while(!mf.eof())
         {
             mf>>d;
-            Y[i]=d;
+            y.push_back(d);
         }
-    mf.close();
+        mf.close();
     }
-    else cout << "Unable to open file 2";
-    vector<float> x(reg_coefficient_vector_size);
-    /*int a[3]={100,500,1000};
-    for(int i=0;i<3;i++)
-    {
-        ::feature_vector_size=a[i];
-        ::reg_coefficient_vector_size=a[i]+1;
-        abc A=abc(40,100,1000);
-        A.find_fit();
-    }*/
-    //cso C=cso({-5,5},10,1000,.5,reg_coefficient_vector_size);
-    //C.find_fit();
+    else cout << "Unable to open file Y";
 
-    for(int col=40;col<=40;col+=20)
+    //10 fold cross validation
+    for(int i=0;i<10;i++) //i_max=10 refers to no. of runs
     {
-        for(int p=0;p<100;p++)
+        float accuracy=0,recall=0,precision=0,specificity=0,f1score=0;
+        for(int j=0;j<10;j++)//j is jth fold of for cross validation
         {
-            abc K=abc(40,100,2000,0.1);
+            X_train.clear();
+            Y_train.clear();
+            X_test.clear();
+            Y_test.clear();
+            int s_ind=(i*y.size())/10;
+            for(int k=0;k<y.size();k++)
+            {
+                if(k>=s_ind&&k<s_ind+y.size()/10)
+                {
+                    X_test.push_back(x[k]);
+                    Y_test.push_back(y[k]);
+                }
+                else
+                {
+                    X_train.push_back(x[k]);
+                    Y_train.push_back(y[k]);
+                }
+            }
+            kho K=kho(40,2000);
             K.find_fit();
             vector<float> fval=LogRegObjFun(res);
             int fn=0,fp=0,tn=0,tp=0;
-            for(int i=train_size;i<total_size;i++)
+            for(int i=0;i<fval.size();i++)
             {
                 if(fval[i]>.5)
                 {
-                    if(Y[i])tp++;
+                    if(Y_test[i])tp++;
                     else fp++;
                 }
                 else
                 {
-                    if(Y[i])fn++;
+                    if(Y_test[i])fn++;
                     else tn++;
                 }
             }
-            cout<<"\nWe are bee\n"<<p<<endl;
-            cout<<"\naccuracy="<<(tn+tp)/(tn+tp+fn+fp+0.0);
-            cout<<"\nSensitivity/Recall="<<tp/(tp+fn+0.0);
-            cout<<"\nspecificity="<<tn/(tn+fp+0.0);
-            cout<<"\nprecision="<<tp/(tp+fp+0.0);
-            float precision=tp/(tp+fp+0.0),recall=tp/(tp+fn+0.0);
-            cout<<"\nF1 score="<<2*(precision*recall)/(precision+recall);
-            ofstream evp;
-            evp.open("eval_param_abc_enron.txt",ios_base::app);
-            evp<<fn<<" "<<fp<<" "<<tn<<" "<<tp<<"\n";
-            evp.close();
+            accuracy+=(tn+tp)/(tn+tp+fn+fp+0.0);
+            cout<<endl<<accuracy<<endl;
+            recall+=tp/(tp+fn+0.0);
+            specificity+=tn/(tn+fp+0.0);
+            precision+=tp/(tp+fp+0.0);
+            recall+=tp/(tp+fn+0.0);
+            f1score+=2*(tp/(tp+fp+0.0)*tp/(tp+fn+0.0))/(tp/(tp+fp+0.0)+tp/(tp+fn+0.0));
         }
-
+            accuracy/=10;
+            recall/=10;
+            specificity/=10;
+            precision/=10;
+            recall/=10;
+            f1score/=10;
+            cout<<"\naccuracy="<<accuracy;
+            cout<<"\nSensitivity/Recall="<<recall;
+            cout<<"\nspecificity="<<specificity;
+            cout<<"\nprecision="<<precision;
+            cout<<"\nF1 score="<<f1score;
+            ofstream evp;
+            evp.open("eval_param_kho_sms.txt",ios_base::app);
+            evp<<accuracy<<" "<<recall<<" "<<precision<<" "<<specificity<<f1score<<"\n";
+            evp.close();
     }
     return 0;
 }
